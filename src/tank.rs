@@ -1,14 +1,16 @@
-use std::f32::{consts::PI, EPSILON};
+use std::f32::{EPSILON, consts::PI};
 
 use bevy::asset::AssetServer;
-use bevy::math::{Quat, Vec2};
+use bevy::math::{Quat, Vec2, Vec3};
 use bevy::prelude::{BuildChildren, Bundle, Commands, Component, Query, Res, Transform};
 use bevy::{sprite::Sprite, time::Time};
 
 const WIDTH: f32 = 20.0;
 const HEIGTH: f32 = 25.0;
+pub const DIAMETER: f32 = 25.0;
+pub const DIAMETER_SQUARED: f32 = 625.0;
 
-const TANK_MAX_SPEED: f32 = 500.0;
+pub const TANK_MAX_SPEED: f32 = 500.0;
 const TANK_MAX_ACCELERATION: f32 = 100.0;
 
 const TURRET_MAX_SPEED: f32 = 2.0;
@@ -83,12 +85,13 @@ impl Tank {
         body_path: &str,
         turret_path: &str,
         start_position: Vec2,
+        start_velocity: Vec2,
         commands: &mut Commands,
         asset_server: &Res<AssetServer>,
     ) {
         commands
             .spawn(Tank::new(
-                Vec2::new(0.0, 0.0),
+                start_velocity,
                 Vec2::new(0.0, 0.0),
                 Sprite::from_image(asset_server.load(body_path)),
                 Transform::from_xyz(start_position.x, start_position.y, 0.0),
@@ -143,5 +146,37 @@ pub fn move_tanks(time: Res<Time>, mut tanks: Query<(&mut TankData, &mut Transfo
         }
 
         // TODO: add friction?
+    }
+
+    // TODO: add collision?
+    // NOTE: for simplicity, tanks have a circle as their bounding box
+    let tank_count = tanks.iter().count();
+    let mut corrections = tanks
+        .iter()
+        .map(|_| Vec3::new(0.0, 0.0, 0.0))
+        .collect::<Vec<_>>();
+    for i in 0..tank_count {
+        for j in (i+1)..tank_count {
+            let (_, pos_1) = tanks
+                .iter()
+                .nth(i)
+                .expect("{i} should be in range of [0, {tanks_count}[");
+            let (_, pos_2) = tanks
+                .iter()
+                .nth(j)
+                .expect("{j} should be in range of [{i}, {tanks_count}[");
+            let distance = pos_1.translation - pos_2.translation;
+            if distance.length_squared() < DIAMETER_SQUARED {
+                let dir = distance.normalize();
+                corrections[i] -= 0.5 * (distance - (dir * DIAMETER));
+                corrections[j] += 0.5 * (distance - (dir * DIAMETER));
+            }
+        }
+    }
+
+    let mut correction_iter = corrections.iter();
+    for (_, mut transform) in &mut tanks {
+        let correction = correction_iter.next().expect("Should have the same size by definition.");
+        transform.translation += correction;
     }
 }
