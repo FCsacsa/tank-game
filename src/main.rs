@@ -47,9 +47,26 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     Tank::setup(
         "tank_body.png",
         "tank_turret.png",
+        Vec2::new(100.0, 0.0),
+        Vec2::new(100.0, 100.0),
+        &mut commands,
+        &asset_server,
+    );
+
+    Tank::setup(
+        "tank_body.png",
+        "tank_turret.png",
         Vec2::new(0.0, 0.0),
-        Vec2::new(0.0, 0.0),
-        // Vec2::new(100.0, 100.0),
+        Vec2::new(100.0, 100.0),
+        &mut commands,
+        &asset_server,
+    );
+
+    Tank::setup(
+        "tank_body.png",
+        "tank_turret.png",
+        Vec2::new(-113.0, 0.0),
+        Vec2::new(100.0, 100.0),
         &mut commands,
         &asset_server,
     );
