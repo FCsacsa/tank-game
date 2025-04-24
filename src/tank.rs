@@ -121,7 +121,6 @@ pub fn update_turrets(time: Res<Time>, mut turrets: Query<(&mut TurretData, &mut
 
 pub fn move_tanks(time: Res<Time>, mut tanks: Query<(&mut TankData, &mut Transform)>) {
     for (mut data, mut transform) in &mut tanks {
-        println!("{}", transform.translation);
         // update speed
         let new_speed = (data.acceleration * time.delta_secs() + data.speed).clamp(
             Vec2::new(-TANK_MAX_SPEED, -TANK_MAX_SPEED),
@@ -150,7 +149,6 @@ pub fn move_tanks(time: Res<Time>, mut tanks: Query<(&mut TankData, &mut Transfo
 
     // NOTE: for simplicity, tanks have a circle as their bounding box
     let tank_count = tanks.iter().count();
-    println!("#tanks: {}", tank_count);
     let mut corrections = tanks
         .iter()
         .map(|_| Vec3::new(0.0, 0.0, 0.0))

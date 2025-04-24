@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use bevy::{
     DefaultPlugins,
     app::{App, Startup, Update},
@@ -42,7 +44,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Msaa::Off,
     ));
 
-    Map::setup(&mut commands, &asset_server);
+    Map::load_map_from_path(Path::new("assets/map.jsonc")).unwrap().setup(&mut commands, &asset_server);
 
     Tank::setup(
         "tank_body.png",
