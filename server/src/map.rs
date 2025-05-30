@@ -1,27 +1,18 @@
-use std::{
-    f32::{EPSILON, consts::PI},
-    fs::File,
-    path::Path,
-};
+use std::path::Path;
 
 use bevy::{
     asset::AssetServer,
-    color::Color,
     ecs::{
         bundle::Bundle,
         component::Component,
         system::{Commands, Query, QueryLens, Res},
     },
-    math::{Dir3, Vec2, Vec3},
-    render::render_resource::encase::private::Length,
+    math::{Vec2, Vec3},
     sprite::Sprite,
-    time::Time,
     transform::components::Transform,
 };
 use serde::Serialize;
 use thiserror::Error;
-
-use crate::tank;
 
 use super::tank::{DIAMETER, TankData};
 use super::util::{forget_z, with_z};
@@ -41,7 +32,7 @@ struct Wall {
 
 impl Wall {
     fn new(normal: Vec2, half_length: f32, origin: Vec2) -> Self {
-        let mut transform = Transform::from_translation(with_z(origin, -EPSILON));
+        let mut transform = Transform::from_translation(with_z(origin, -f32::EPSILON));
         transform = transform.looking_to(transform.forward(), with_z(normal, 0.0));
         // ensure normalise
         let normal = normal.normalize();
@@ -135,7 +126,7 @@ pub fn wall_collision(
     let mut tanks: QueryLens<(&TankData, &mut Transform)> =
         tank_data.join_filtered(&mut transforms);
     let mut walls: QueryLens<(&WallData, &Transform)> = wall_data.join_filtered(&mut transforms);
-    for (mut tank_data, mut tank_transform) in &mut tanks.query() {
+    for (mut _tank_data, mut tank_transform) in &mut tanks.query() {
         let mut correction = Vec3::new(0.0, 0.0, 0.0);
         for (wall_data, wall_transform) in &walls.query() {
             // truncate normal

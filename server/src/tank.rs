@@ -1,4 +1,4 @@
-use std::f32::{EPSILON, consts::PI};
+use std::f32::consts::PI;
 
 use bevy::asset::AssetServer;
 use bevy::math::{Quat, Vec2, Vec3};
@@ -6,7 +6,7 @@ use bevy::prelude::{BuildChildren, Bundle, Commands, Component, Query, Res, Tran
 use bevy::{sprite::Sprite, time::Time};
 
 const WIDTH: f32 = 20.0;
-const HEIGTH: f32 = 25.0;
+const _HEIGTH: f32 = 25.0;
 pub const DIAMETER: f32 = 25.0;
 pub const DIAMETER_SQUARED: f32 = 625.0;
 
@@ -37,7 +37,7 @@ impl Turret {
                 acceleration: 0.0,
             },
             sprite,
-            transform: Transform::from_xyz(0.0, 3.0, EPSILON),
+            transform: Transform::from_xyz(0.0, 3.0, f32::EPSILON),
         }
     }
 }
@@ -128,7 +128,7 @@ pub fn move_tanks(time: Res<Time>, mut tanks: Query<(&mut TankData, &mut Transfo
         );
         data.speed = new_speed;
 
-        if (data.speed.x - data.speed.y).abs() < EPSILON {
+        if (data.speed.x - data.speed.y).abs() < f32::EPSILON {
             // only forward
             let move_direction = transform.up();
             transform.translation +=
@@ -154,7 +154,7 @@ pub fn move_tanks(time: Res<Time>, mut tanks: Query<(&mut TankData, &mut Transfo
         .map(|_| Vec3::new(0.0, 0.0, 0.0))
         .collect::<Vec<_>>();
     for i in 0..tank_count {
-        for j in (i+1)..tank_count {
+        for j in (i + 1)..tank_count {
             let (_, pos_1) = tanks
                 .iter()
                 .nth(i)
@@ -174,7 +174,9 @@ pub fn move_tanks(time: Res<Time>, mut tanks: Query<(&mut TankData, &mut Transfo
 
     let mut correction_iter = corrections.iter();
     for (_, mut transform) in &mut tanks {
-        let correction = correction_iter.next().expect("Should have the same size by definition.");
+        let correction = correction_iter
+            .next()
+            .expect("Should have the same size by definition.");
         transform.translation += correction;
     }
 }

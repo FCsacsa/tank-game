@@ -1,3 +1,6 @@
+// Allow dead code while we are still actively developing
+#![allow(dead_code)]
+
 use std::path::Path;
 
 use bevy::{
@@ -24,7 +27,7 @@ use tank::{Tank, move_tanks, update_turrets};
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(FrameTimeDiagnosticsPlugin::default())
+        .add_plugins(FrameTimeDiagnosticsPlugin)
         .add_plugins(PerfUiPlugin)
         .add_systems(Startup, setup)
         .add_systems(
@@ -72,16 +75,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         &mut commands,
         &asset_server,
     );
-
-    // Tank::setup(
-    //     "tank_body.png",
-    //     "tank_turret.png",
-    //     Vec2::new(50.0, 0.0),
-    //     Vec2::new(300.0, 500.0),
-    //     &mut commands,
-    //     &asset_server,
-    // );
-
+    
     commands.spawn((
         PerfUiRoot {
             display_labels: false,

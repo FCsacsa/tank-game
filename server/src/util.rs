@@ -8,6 +8,6 @@ pub fn with_z(vec: Vec2, z: f32) -> Vec3 {
     Vec3 {
         x: vec.x,
         y: vec.y,
-        z: z,
+        z,
     }
 }
