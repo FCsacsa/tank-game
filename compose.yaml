@@ -1,0 +1,21 @@
+
+services:
+  server:
+    build:
+      dockerfile: ./Dockerfile
+      context: ./server
+    environment:
+      XDG_RUNTIME_DIR: /tmp
+      WAYLAND_DISPLAY: $WAYLAND_DISPLAY
+      SELF_PORT: 4000
+      CLIENT0: 4001
+    volumes:
+      - $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/$WAYLAND_DISPLAY
+    user: "$UID:$GID"
+  client:
+    build:
+      dockerfile: ./Dockerfile
+      context: ./client
+    environment:
+      SELF_PORT: 4001
+      SERVER: 4000
