@@ -1,0 +1,69 @@
+#+title: Readme
+
+* Communication
+- all messages done trough UDP
+** Client to server
+*** Connect
+- self port: ~2~ bytes
+*** Control
+| client secret       | ~u128~     | ~16~ bytes |
+| track acceleration  | ~[f32; 2]~ | ~8~ bytes  |
+| turret acceleration | ~f32~      | ~4~ bytes  |
+| shoot               | ~bool~     | ~1~ BIT    |
+** Server to client
+*** Map Changed
+- client secret: ~16~ bytes
+- map
+  - walls
+    | origin    | ~[f32; 2]~ | ~8~ bytes |
+    | dir * len | ~[f32; 2]~ | ~8~ bytes |
+*** State
+- client secret: ~16~ bytes
+- tanks state: max. 8 at a time
+  | position         | ~[f32; 2]~ | ~8~ bytes |
+  | facing           | ~[f32; 2]~ | ~8~ bytes |
+  | turret direction | ~[f32; 2]~ | ~8~ bytes |
+- bullet state: max. 128 at a time
+  | position  | ~[f32; 2]~ | ~8~ bytes |
+  | direction | ~[f32; 2]~ | ~8~ bytes |
+*** Disconnected
+no data
+* Server
+** Entities
+*** Map
+**** Walls
+- Transform, Sprite
+  - start
+  - direction
+  - normal
+- length ~f32~
+**** Spawns
+- Transform
+*** Tank
+- Transform, Sprite
+- data
+  | accelerations       | ~[f32; 2]~ |
+  | velocities          | ~[f32; 2]~ |
+  | turret acceleration | ~f32~      |
+  | turret velocity     | ~f32~      |
+**** Turret
+- Transform, Sprite
+*** Bullet
+- Transform
+- data:
+  | bounce | ~bool~ |
+  | speed  | ~f32~  |
+** Systems
+*** Update
+**** Tank movement
+**** Tank-Tank collision
+**** Wall-Tank collision
+**** Wall-Bullet collision
+**** Tank-Bullet collision
+**** Send state
+**** Receive messages
+**** Cull players
+*** Fixed Update
+**** Update controls
+*** On a timer
+**** Change map

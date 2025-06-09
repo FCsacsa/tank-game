@@ -1,9 +1,15 @@
 use std::f32::consts::PI;
+use std::ops::Index;
+use std::time::Duration;
 
 use bevy::asset::AssetServer;
+use bevy::ecs::entity::Entity;
+use bevy::hierarchy::{Children, DespawnRecursiveExt};
 use bevy::math::{Quat, Vec2, Vec3};
 use bevy::prelude::{BuildChildren, Bundle, Commands, Component, Query, Res, Transform};
 use bevy::{sprite::Sprite, time::Time};
+
+use crate::Socket;
 
 const WIDTH: f32 = 20.0;
 const _HEIGTH: f32 = 25.0;
@@ -15,6 +21,10 @@ const TANK_MAX_ACCELERATION: f32 = 100.0;
 
 const TURRET_MAX_SPEED: f32 = 2.0;
 const TURRET_MAX_ACCELERATION: f32 = 0.5;
+
+const INACTIVE_TIMEOUT: Duration = Duration::from_secs(5);
+
+const DISCONNECTED: [u8; 1] = [2];
 
 #[derive(Component, Debug)]
 pub struct TurretData {
@@ -44,8 +54,10 @@ impl Turret {
 
 #[derive(Component)]
 pub struct TankData {
+    player: u16,
     speed: Vec2,
     acceleration: Vec2,
+    timeout: Duration,
 }
 
 impl TankData {
@@ -66,6 +78,7 @@ pub struct Tank {
 
 impl Tank {
     pub fn new(
+        player: u16,
         speed: Vec2,
         acceleration: Vec2,
         body_sprite: Sprite,
@@ -73,8 +86,10 @@ impl Tank {
     ) -> Self {
         Self {
             data: TankData {
+                player,
                 speed,
                 acceleration,
+                timeout: Duration::from_micros(0),
             },
             sprite: body_sprite,
             transform: start_position,
@@ -82,6 +97,7 @@ impl Tank {
     }
 
     pub fn setup(
+        player: u16,
         body_path: &str,
         turret_path: &str,
         start_position: Vec2,
@@ -91,6 +107,7 @@ impl Tank {
     ) {
         commands
             .spawn(Tank::new(
+                player,
                 start_velocity,
                 Vec2::new(0.0, 0.0),
                 Sprite::from_image(asset_server.load(body_path)),
@@ -119,8 +136,32 @@ pub fn update_turrets(time: Res<Time>, mut turrets: Query<(&mut TurretData, &mut
     }
 }
 
-pub fn move_tanks(time: Res<Time>, mut tanks: Query<(&mut TankData, &mut Transform)>) {
-    for (mut data, mut transform) in &mut tanks {
+pub fn move_tanks(
+    time: Res<Time>,
+    mut tanks: Query<(Entity, &mut TankData, &mut Transform)>,
+    mut socket: Query<&mut Socket>,
+    mut commands: Commands,
+) {
+    for (entity_id, mut data, mut transform) in &mut tanks {
+        // update timeout
+        data.timeout += time.delta();
+        if data.timeout > INACTIVE_TIMEOUT {
+            // do not send to them anymare
+            socket.iter().for_each(|s| {
+                if let Err(err) = s.udp.send_to(&DISCONNECTED, ("127.0.0.1", data.player)) {
+                    println!(
+                        "[ERR] - something failed while disconnecting {}: {err}",
+                        data.player
+                    )
+                }
+            });
+            socket
+                .iter_mut()
+                .for_each(|mut s| s.ports.retain(|p| *p != data.player));
+            // despawn
+            commands.entity(entity_id).despawn_recursive();
+        }
+
         // update speed
         let new_speed = (data.acceleration * time.delta_secs() + data.speed).clamp(
             Vec2::new(-TANK_MAX_SPEED, -TANK_MAX_SPEED),
@@ -153,16 +194,8 @@ pub fn move_tanks(time: Res<Time>, mut tanks: Query<(&mut TankData, &mut Transfo
         .iter()
         .map(|_| Vec3::new(0.0, 0.0, 0.0))
         .collect::<Vec<_>>();
-    for i in 0..tank_count {
-        for j in (i + 1)..tank_count {
-            let (_, pos_1) = tanks
-                .iter()
-                .nth(i)
-                .expect("{i} should be in range of [0, {tanks_count}[");
-            let (_, pos_2) = tanks
-                .iter()
-                .nth(j)
-                .expect("{j} should be in range of [{i}, {tanks_count}[");
+    for (i, (_, _, pos_1)) in tanks.iter().enumerate() {
+        for (j, (_, _, pos_2)) in tanks.iter().enumerate().skip(i + 1) {
             let distance = pos_1.translation - pos_2.translation;
             if distance.length_squared() < DIAMETER_SQUARED {
                 let dir = distance.normalize();
@@ -173,7 +206,7 @@ pub fn move_tanks(time: Res<Time>, mut tanks: Query<(&mut TankData, &mut Transfo
     }
 
     let mut correction_iter = corrections.iter();
-    for (_, mut transform) in &mut tanks {
+    for (_, _, mut transform) in &mut tanks {
         let correction = correction_iter
             .next()
             .expect("Should have the same size by definition.");

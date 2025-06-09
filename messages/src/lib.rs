@@ -36,7 +36,7 @@ impl Display for ClientMessages {
 impl From<ClientMessages> for Vec<u8> {
     fn from(value: ClientMessages) -> Self {
         match value {
-            ClientMessages::ConnectMessage {port} => vec![[0, 0], port.to_be_bytes()].concat(),
+            ClientMessages::ConnectMessage { port } => vec![[0, 0], port.to_be_bytes()].concat(),
             ClientMessages::ControlMessage {
                 target_acceleration,
                 turret_acceleration,
@@ -62,9 +62,9 @@ impl From<[u8; 16]> for ClientMessages {
     fn from(value: [u8; 16]) -> Self {
         match value[0] {
             0 => {
-                let port = u16::from_be_bytes(value[2..6].try_into().expect("4 bytes are 4 bytes"));
-                Self::ConnectMessage {port}
-            },
+                let port = u16::from_be_bytes(value[2..4].try_into().expect("2 bytes are 2 bytes"));
+                Self::ConnectMessage { port }
+            }
             1 => {
                 let acceleration_x =
                     f32::from_be_bytes(value[4..8].try_into().expect("4 bytes is 4 bytes"));
@@ -84,10 +84,11 @@ impl From<[u8; 16]> for ClientMessages {
     }
 }
 
+#[derive(Clone)]
 pub struct TankState {
-    position: [f32; 2], // 2 * 4 bytes
-    facing: [f32; 2],   // 2 * 4 bytes
-    turret: [f32; 2],   // 2 * 4 bytes
+    pub position: [f32; 2], // 2 * 4 bytes
+    pub facing: [f32; 2],   // 2 * 4 bytes
+    pub turret: [f32; 2],   // 2 * 4 bytes
 }
 
 impl Display for TankState {
@@ -108,10 +109,11 @@ impl Display for TankState {
 pub enum ServerMessages {
     MapChange,
     TankStates {
-        client_id: u8, // we expect less than 16 clients  | 1 byte + 3 for padding and msg type
+        client_id: u16, // we expect less than 16 clients  | 1 byte + 3 for padding and msg type
         tanks: Vec<TankState>, // position and state of all tanks | 16 * 24 bytes
         bullets: Vec<[f32; 2]>, // position of all active bullets  | 128 * 2 * 4 bytes
     },
+    Disconnected,
 }
 
 impl Display for ServerMessages {
@@ -133,6 +135,7 @@ impl Display for ServerMessages {
                 }
                 write!(f, "")
             }
+            ServerMessages::Disconnected => todo!(),
         }
     }
 }
@@ -147,7 +150,13 @@ impl From<ServerMessages> for Vec<u8> {
                 bullets,
             } => {
                 let mut collect: Vec<[u8; 4]> = Vec::new();
-                collect.push([1, client_id, tanks.len() as u8, bullets.len() as u8]);
+                collect.push([1, 0, 0, 0]);
+                collect.push([
+                    client_id.to_be_bytes()[0],
+                    client_id.to_be_bytes()[1],
+                    tanks.len() as u8,
+                    bullets.len() as u8,
+                ]);
                 for TankState {
                     position,
                     facing,
@@ -168,6 +177,7 @@ impl From<ServerMessages> for Vec<u8> {
 
                 collect.concat()
             }
+            ServerMessages::Disconnected => vec![2],
         }
     }
 }
@@ -179,13 +189,14 @@ impl TryFrom<[u8; 1412]> for ServerMessages {
         match value[0] {
             0 => todo!(),
             1 => {
-                let client_id = value[1];
-                let n_tanks = value[2];
-                let n_bullets = value[3];
+                let client_id =
+                    u16::from_be_bytes(value[4..6].try_into().expect("2 bytes is 2 bytes"));
+                let n_tanks = value[6];
+                let n_bullets = value[7];
 
                 let mut tanks = Vec::new();
                 for i in 0..n_tanks as usize {
-                    let start = 4 + 24 * i;
+                    let start = 8 + 24 * i;
                     tanks.push(TankState {
                         position: [
                             f32::from_be_bytes(
@@ -228,7 +239,7 @@ impl TryFrom<[u8; 1412]> for ServerMessages {
 
                 let mut bullets = Vec::new();
                 for i in 0..n_bullets as usize {
-                    let start = 4 + n_tanks as usize * 24 + i * 8;
+                    let start = 8 + n_tanks as usize * 24 + i * 8;
                     bullets.push([
                         f32::from_be_bytes(
                             value[start..start + 4]
@@ -249,6 +260,7 @@ impl TryFrom<[u8; 1412]> for ServerMessages {
                     bullets,
                 })
             }
+            2 => Ok(ServerMessages::Disconnected),
             _ => Err(()),
         }
     }
