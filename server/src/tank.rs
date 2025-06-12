@@ -1,10 +1,9 @@
 use std::f32::consts::PI;
-use std::ops::Index;
 use std::time::Duration;
 
 use bevy::asset::AssetServer;
 use bevy::ecs::entity::Entity;
-use bevy::hierarchy::{Children, DespawnRecursiveExt};
+use bevy::hierarchy::DespawnRecursiveExt;
 use bevy::math::{Quat, Vec2, Vec3};
 use bevy::prelude::{BuildChildren, Bundle, Commands, Component, Query, Res, Transform};
 use bevy::{sprite::Sprite, time::Time};
@@ -26,10 +25,19 @@ const INACTIVE_TIMEOUT: Duration = Duration::from_secs(5);
 
 const DISCONNECTED: [u8; 1] = [2];
 
+const DEFAULT_BULLET_SPEED: f32 = 100.0;
+
 #[derive(Component, Debug)]
 pub struct TurretData {
+    pub player: u16,
     velocity: f32,
     acceleration: f32,
+}
+
+impl TurretData {
+    pub fn set_acceleration(&mut self, target: f32) {
+        self.acceleration = target.clamp(-TURRET_MAX_ACCELERATION, TURRET_MAX_ACCELERATION);
+    }
 }
 
 #[derive(Bundle)]
@@ -40,9 +48,10 @@ pub struct Turret {
 }
 
 impl Turret {
-    pub fn new(sprite: Sprite) -> Self {
+    pub fn new(player: u16, sprite: Sprite) -> Self {
         Self {
             data: TurretData {
+                player,
                 velocity: 0.0,
                 acceleration: 0.0,
             },
@@ -54,14 +63,17 @@ impl Turret {
 
 #[derive(Component)]
 pub struct TankData {
-    player: u16,
+    pub player: u16,
     speed: Vec2,
     acceleration: Vec2,
-    timeout: Duration,
+    pub connection_timeout: Duration,
+    pub shoot: bool,
+    pub shoot_timeout: Duration,
+    pub bullet_speed: f32,
 }
 
 impl TankData {
-    pub fn set_acceleration(mut self, new_value: Vec2) {
+    pub fn set_acceleration(&mut self, new_value: Vec2) {
         self.acceleration = new_value.clamp(
             Vec2::new(-TANK_MAX_ACCELERATION, -TANK_MAX_ACCELERATION),
             Vec2::new(TANK_MAX_ACCELERATION, TANK_MAX_ACCELERATION),
@@ -89,7 +101,10 @@ impl Tank {
                 player,
                 speed,
                 acceleration,
-                timeout: Duration::from_micros(0),
+                connection_timeout: Duration::from_micros(0),
+                shoot: false,
+                shoot_timeout: Duration::from_secs(10000),
+                bullet_speed: DEFAULT_BULLET_SPEED,
             },
             sprite: body_sprite,
             transform: start_position,
@@ -113,9 +128,10 @@ impl Tank {
                 Sprite::from_image(asset_server.load(body_path)),
                 Transform::from_xyz(start_position.x, start_position.y, 0.0),
             ))
-            .with_child(Turret::new(Sprite::from_image(
-                asset_server.load(turret_path),
-            )));
+            .with_child(Turret::new(
+                player,
+                Sprite::from_image(asset_server.load(turret_path)),
+            ));
     }
 }
 
@@ -143,9 +159,10 @@ pub fn move_tanks(
     mut commands: Commands,
 ) {
     for (entity_id, mut data, mut transform) in &mut tanks {
-        // update timeout
-        data.timeout += time.delta();
-        if data.timeout > INACTIVE_TIMEOUT {
+        // update timeouts
+        data.connection_timeout += time.delta();
+        data.shoot_timeout += time.delta();
+        if data.connection_timeout > INACTIVE_TIMEOUT {
             // do not send to them anymare
             socket.iter().for_each(|s| {
                 if let Err(err) = s.udp.send_to(&DISCONNECTED, ("127.0.0.1", data.player)) {
@@ -157,7 +174,7 @@ pub fn move_tanks(
             });
             socket
                 .iter_mut()
-                .for_each(|mut s| s.ports.retain(|p| *p != data.player));
+                .for_each(|mut s| s.ports.retain(|(p, _)| *p != data.player));
             // despawn
             commands.entity(entity_id).despawn_recursive();
         }
@@ -189,7 +206,6 @@ pub fn move_tanks(
     }
 
     // NOTE: for simplicity, tanks have a circle as their bounding box
-    let tank_count = tanks.iter().count();
     let mut corrections = tanks
         .iter()
         .map(|_| Vec3::new(0.0, 0.0, 0.0))

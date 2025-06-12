@@ -29,15 +29,18 @@ fn main() {
         println!("{parsed:?}");
         match parsed {
             ServerMessages::MapChange { secret, walls } => {
-                let msg_vec = Vec::from(&ClientMessages::Control {
-                    secret,
-                    tracks_acceleration_target: walls[0].origin,
-                    turret_acceleration_target: walls[0].direction_length[1],
-                    shoot: secret % 2 == 1,
-                });
-                socket
-                    .send_to(&msg_vec, ("127.0.0.1", server_port))
-                    .unwrap();
+                // let msg = ClientMessages::Control {
+                //     self_port,
+                //     secret,
+                //     tracks_acceleration_target: walls[0].origin,
+                //     turret_acceleration_target: walls[0].direction_length[1],
+                //     shoot: secret % 2 == 1,
+                // };
+                // let msg_vec = Vec::from(&msg);
+                // socket
+                //     .send_to(&msg_vec, ("127.0.0.1", server_port))
+                //     .unwrap();
+                // println!("sent: {msg:?}")
             }
             ServerMessages::State {
                 secret,
@@ -47,9 +50,10 @@ fn main() {
                 socket
                     .send_to(
                         &Vec::from(&ClientMessages::Control {
+                            self_port,
                             secret,
-                            tracks_acceleration_target: tanks[0].position,
-                            turret_acceleration_target: tanks[0].tank_direction[0],
+                            tracks_acceleration_target: [-10.0, 10.0],
+                            turret_acceleration_target: 50.0,
                             shoot: true,
                         }),
                         ("127.0.0.1", server_port),

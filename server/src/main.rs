@@ -1,14 +1,16 @@
 // Allow dead code while we are still actively developing
 #![allow(dead_code)]
 
-use std::{net::UdpSocket, path::Path};
+use std::{net::UdpSocket, path::Path, time::Duration};
 
 use bevy::{
     app::{App, FixedUpdate, Startup, Update},
     asset::AssetServer,
     diagnostic::FrameTimeDiagnosticsPlugin,
     ecs::{
-        component::Component, schedule::IntoSystemConfigs, system::{Query, QueryLens}
+        component::Component,
+        schedule::IntoSystemConfigs,
+        system::{Query, QueryLens, ResMut, Resource},
     },
     hierarchy::Children,
     math::Vec2,
@@ -18,34 +20,55 @@ use bevy::{
     utils::default,
     DefaultPlugins,
 };
+use bullet::Bullet;
 use iyes_perf_ui::{
     prelude::{PerfUiEntryFPS, PerfUiEntryFPSWorst, PerfUiRoot},
     PerfUiPlugin,
 };
+use messages::{
+    client::ClientMessages,
+    server::{self, ServerMessages},
+};
 
+mod bullet;
 mod map;
-mod util;
-use map::{wall_collision, Map};
 mod tank;
-use messages::{ClientMessages, ServerMessages, TankState};
-use tank::{move_tanks, update_turrets, Tank, TankData};
+mod util;
+
+use map::{wall_collision, Map};
+use tank::{move_tanks, update_turrets, Tank, TankData, TurretData};
 use util::forget_z_arr;
 
-#[derive(Component)]
+#[derive(Component, Resource)]
 struct Socket {
     udp: UdpSocket,
-    ports: Vec<u16>,
+    ports: Vec<(u16, u128)>,
 }
 
 fn main() {
+    let server_port = std::env::var("SELF_PORT")
+        .unwrap_or("4000".to_owned())
+        .parse()
+        .unwrap_or(4000);
+    let socket =
+        UdpSocket::bind(("127.0.0.1", server_port)).expect("[ERR] - could not bind server port");
+    socket
+        .set_nonblocking(true)
+        .expect("[ERR] - could not set non-blocking mode");
+
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(FrameTimeDiagnosticsPlugin)
         .add_plugins(PerfUiPlugin)
+        .insert_resource(Socket {
+            udp: socket,
+            ports: vec![],
+        })
         .add_systems(Startup, setup)
         .add_systems(
             Update,
             (
+                (Bullet::shoot, Bullet::move_bullets, Bullet::hit).chain(),
                 ((move_tanks, wall_collision).chain(), update_turrets),
                 send_state,
             )
@@ -57,21 +80,6 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // set up server socket
-    let server_port = std::env::var("SELF_PORT")
-        .unwrap_or("4000".to_owned())
-        .parse()
-        .unwrap_or(4000);
-    let socket =
-        UdpSocket::bind(("127.0.0.1", server_port)).expect("[ERR] - could not bind server port");
-    socket
-        .set_nonblocking(true)
-        .expect("[ERR] - could not set non-blocking mode");
-    commands.spawn(Socket {
-        udp: socket,
-        ports: vec![],
-    });
-
     commands.spawn((
         Camera2d,
         OrthographicProjection {
@@ -98,7 +106,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn send_state(
-    sockets: Query<&Socket>,
+    socket: Res<Socket>,
     mut transforms: Query<&Transform>,
     mut tanks_data: Query<(&TankData, &Children)>,
 ) {
@@ -106,45 +114,51 @@ fn send_state(
 
     let mut tanks_data: QueryLens<(&TankData, &Children, &Transform)> =
         tanks_data.join_filtered(&mut transforms);
-    for (data, children, transform) in &tanks_data.query() {
+    for (_, children, transform) in &tanks_data.query() {
         let turret = transforms
             .get(*children.first().expect("tank has a turret as child"))
             .expect("turret has a transform")
             .up();
         let turret_in_world = turret;
-        tanks.push(TankState {
+        tanks.push(server::Tank {
             position: forget_z_arr(transform.translation),
-            facing: forget_z_arr(transform.up().into()),
-            turret: forget_z_arr(turret_in_world.into()),
+            tank_direction: forget_z_arr(transform.up().into()),
+            turret_direction: forget_z_arr(turret_in_world.into()),
         });
     }
 
-    for socket in &sockets {
-        for port in &socket.ports {
-            let msg: Vec<u8> = ServerMessages::TankStates {
-                client_id: *port,
-                tanks: tanks.clone(),
-                bullets: vec![],
-            }
-            .into();
-            if let Err(err) = socket.udp.send_to(&msg, ("127.0.0.1", *port)) {
-                println!("[ERR] could not send state to {port}: {err}");
-            }
+    for (port, secret) in &socket.ports {
+        let msg = Vec::from(&ServerMessages::State {
+            secret: *secret,
+            tanks: tanks.clone(),
+            bullets: vec![],
+        });
+        if let Err(err) = socket.udp.send_to(&msg, ("127.0.0.1", *port)) {
+            println!("[ERR] could not send state to {port}: {err}");
         }
     }
 }
 
-fn listen_socket(mut sockets: Query<&mut Socket>, mut commands: Commands, asset_server: Res<AssetServer>) {
-    for mut socket in &mut sockets {
-        let mut buf = [0; 16];
-        if let Ok(n_bytes) = socket.udp.recv(&mut buf) {
-            let msg = ClientMessages::from(buf);
-            println!("[LOG] - got input ({msg}) with length {n_bytes}");
+fn listen_socket(
+    mut socket: ResMut<Socket>,
+    mut tanks: Query<&mut TankData>,
+    mut turrets: Query<&mut TurretData>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+) {
+    let mut buf = [0; 32];
+    while let Ok(n_bytes) = socket.udp.recv(&mut buf) {
+        if let Ok(msg) = ClientMessages::try_from(&buf[..]) {
+            println!("[LOG] - got input ({msg:?}) with length {n_bytes}");
             match msg {
-                ClientMessages::ConnectMessage { port } => {
-                    socket.ports.push(port);
+                ClientMessages::Connect { self_port } => {
+                    let mut secret: u128 = rand::random();
+                    while socket.ports.iter().any(|(_, s)| *s == secret) {
+                        secret = rand::random();
+                    }
+                    socket.ports.push((self_port, rand::random()));
                     Tank::setup(
-                        port,
+                        self_port,
                         "tank_body.png",
                         "tank_turret.png",
                         Vec2::new(0.0, 0.0),
@@ -153,12 +167,31 @@ fn listen_socket(mut sockets: Query<&mut Socket>, mut commands: Commands, asset_
                         &asset_server,
                     );
                 }
-                ClientMessages::ControlMessage {
-                    target_acceleration,
-                    turret_acceleration,
+                ClientMessages::Control {
+                    self_port,
+                    secret,
+                    tracks_acceleration_target,
+                    turret_acceleration_target,
                     shoot,
-                } => todo!(),
+                } => {
+                    if socket
+                        .ports
+                        .iter()
+                        .any(|(p, s)| *p == self_port && *s == secret)
+                    {
+                        if let Some(mut data) = tanks.iter_mut().find(|d| d.player == self_port) {
+                            data.set_acceleration(tracks_acceleration_target.into());
+                            data.connection_timeout = Duration::from_secs(0);
+                            data.shoot = shoot;
+                        }
+                        if let Some(mut data) = turrets.iter_mut().find(|d| d.player == self_port) {
+                            data.set_acceleration(turret_acceleration_target);
+                        }
+                    }
+                }
             }
+        } else {
+            println!("Ill-formatted message: {buf:?}");
         }
     }
 }

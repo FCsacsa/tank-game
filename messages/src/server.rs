@@ -30,7 +30,7 @@ impl From<&[u8; 16]> for Wall {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Tank {
     pub position: [f32; 2],
     pub tank_direction: [f32; 2],
@@ -172,6 +172,7 @@ impl TryFrom<&[u8]> for ServerMessages {
                 }
                 let start = 18 + tank_count * 24;
                 let bullet_count = value[start] as usize;
+                let start = start + 1;
                 let mut bullets = vec![];
                 for i in 0..bullet_count {
                     bullets.push(Bullet::from(
@@ -239,6 +240,13 @@ mod tests {
             Vec::from(&state).len(),
             19 + tank_count * 24 + bullet_count * 16
         );
+        match ServerMessages::try_from(&Vec::from(&state)[..]).unwrap() {
+            ServerMessages::State { tanks, bullets, .. } => {
+                assert_eq!(tanks.len(), tank_count);
+                assert_eq!(bullets.len(), bullet_count);
+            }
+            _ => assert!(false, "Something is very wrong"),
+        }
         assert_eq!(
             ServerMessages::try_from(&Vec::from(&state)[..]).unwrap(),
             state

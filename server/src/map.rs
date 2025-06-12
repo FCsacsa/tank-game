@@ -19,9 +19,9 @@ use super::util::{forget_z, with_z};
 
 #[derive(Component, Serialize)]
 pub struct WallData {
-    normal: Vec2,
-    direction: Vec2,
-    half_length: f32,
+    pub normal: Vec2,
+    pub direction: Vec2,
+    pub half_length: f32,
 }
 
 #[derive(Bundle)]
