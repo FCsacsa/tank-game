@@ -1,0 +1,16 @@
+{
+  "wall_half_length": 50,
+  "sprite_path": "wall.png",
+  "walls": [
+    { "normal": [ 0,  1], "origin": [  50, -100] },
+    { "normal": [ 0,  1], "origin": [ -50, -100] },
+    { "normal": [ 0, -1], "origin": [  50,  200] },
+    { "normal": [ 0, -1], "origin": [ -50,  100] },
+    { "normal": [ 1,  0], "origin": [   0,  150] },
+    { "normal": [ 1,  0], "origin": [-100,   50] },
+    { "normal": [ 1,  0], "origin": [-100,  -50] },
+    { "normal": [-1,  0], "origin": [ 100,  150] },
+    { "normal": [-1,  0], "origin": [ 100,   50] },
+    { "normal": [-1,  0], "origin": [ 100,  -50] }
+  ]
+}
