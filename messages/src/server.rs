@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Wall {
     pub origin: [f32; 2],
     pub direction_length: [f32; 2],
@@ -30,7 +30,7 @@ impl From<&[u8; 16]> for Wall {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tank {
     pub position: [f32; 2],
     pub tank_direction: [f32; 2],
@@ -68,7 +68,7 @@ impl From<&[u8; 24]> for Tank {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Bullet {
     pub position: [f32; 2],
     pub direction: [f32; 2],
@@ -116,6 +116,12 @@ pub enum ServerMessages {
     Disconnected,
 }
 // total of up to: 4883 bytes
+
+impl ServerMessages {
+    pub fn to_vec(self) -> Vec<u8> {
+        Vec::from(&self)
+    }
+}
 
 impl From<&ServerMessages> for Vec<u8> {
     fn from(value: &ServerMessages) -> Self {
