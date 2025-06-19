@@ -1,6 +1,13 @@
 #+title: Readme
 
-* Communication
+* Description
+
+#+begin_src
++- server     | Server that also displas the game.
++- client     | Reference implementation for a client.
+\- server.bak | Old version of the server (here for reference).
+#+end_src
+* Communication Protocol
 - all messages done trough UDP
 ** Client to server
 *** Connect
@@ -28,7 +35,7 @@
   | direction | ~[f32; 2]~ | ~8~ bytes |
 *** Disconnected
 no data
-* Server
+* Server Architecture
 ** Entities
 *** Map
 **** Walls
