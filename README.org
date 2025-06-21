@@ -2,7 +2,12 @@
 
 * Description
 
+This is a game that meant for the use in an event where teams can compete by writing agents for their tank.
+The game is meant to be similar to [[https://miiwiki.org/wiki/Tanks!][Wii Tanks!]], but with more complicated controls.
+The teams can control the individual accelerations of the two tracks, as well as the acceleration of the turret.
+
 #+begin_src
+Folder Structure
 +- server     | Server that also displas the game.
 +- client     | Reference implementation for a client.
 \- server.bak | Old version of the server (here for reference).
