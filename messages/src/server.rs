@@ -118,8 +118,20 @@ pub enum ServerMessages {
 // total of up to: 4883 bytes
 
 impl ServerMessages {
-    pub fn to_vec(self) -> Vec<u8> {
-        Vec::from(&self)
+    pub fn to_vec(&self) -> Vec<u8> {
+        Vec::from(self)
+    }
+
+    pub fn change_secret(&mut self, new_secret: u128) {
+        match self {
+            ServerMessages::MapChange { secret, walls: _ }
+            | ServerMessages::State {
+                secret,
+                tanks: _,
+                bullets: _,
+            } => *secret = new_secret,
+            ServerMessages::Disconnected => todo!(),
+        }
     }
 }
 
