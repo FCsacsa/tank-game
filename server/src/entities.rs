@@ -12,7 +12,8 @@ use bevy::{
     sprite::Sprite,
     transform::components::Transform,
 };
-use serde::Serialize;
+
+use crate::config::Config;
 
 /// For easy access in the systems, we bundle the [`UdpSocket`] as a [`Resource`].
 #[derive(Component, Resource)]
@@ -20,7 +21,7 @@ pub struct Socket(pub UdpSocket);
 
 /// Struct corresponding to a connected player.
 /// It shall contain any stats of the player, to allow for upgrades.
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct Player {
     /// The port where we can send the messages to the player.
     pub port: u16,
@@ -34,9 +35,32 @@ pub struct Player {
     /// Respawn delay
     pub respawn_timer: Option<Duration>,
 
-    tank_sprite_path: String,
-    turret_sprite_path: String,
-    bullet_sprite_path: String,
+    // sprite information
+    pub tank_sprite_path: String,
+    pub turret_sprite_path: String,
+    pub bullet_sprite_path: String,
+
+    // tank properties
+    /// Radius of the tank's collision circle.
+    pub tank_radius: f32,
+    /// Maximum allowed track speed.
+    pub track_max_velocity: Vec2,
+    pub track_max_acceleration: Vec2,
+    pub turret_max_velocity: f32,
+    pub turret_max_acceleration: f32,
+
+    // player last input
+    pub tracks_acceleration_target: Vec2,
+    pub turret_acceleration_target: f32,
+
+    /// Player's last shoot input.
+    pub shoot: bool,
+    /// Timer since last shoot.
+    pub shoot_timer: Option<Duration>,
+    pub shoot_delay: Duration,
+
+    pub bullet_radius: f32,
+    pub bullet_speed: f32,
 }
 
 impl Player {
@@ -48,6 +72,7 @@ impl Player {
         turret_sprite_path: String,
         bullet_sprite_path: String,
         commands: &mut Commands,
+        config: &Res<Config>,
         asset_server: &Res<AssetServer>,
     ) {
         commands
@@ -55,12 +80,18 @@ impl Player {
                 Player {
                     port,
                     secret,
-                    timeout: Duration::from_micros(0),
                     tank_sprite_path: tank_sprite_path.clone(),
                     turret_sprite_path: turret_sprite_path.clone(),
                     bullet_sprite_path,
-                    deaths: 0,
-                    respawn_timer: None,
+                    tank_radius: config.tank_radius,
+                    track_max_velocity: config.track_max_velocity,
+                    track_max_acceleration: config.track_max_acceleration,
+                    turret_max_velocity: config.turret_max_velocity,
+                    turret_max_acceleration: config.turret_max_acceleration,
+                    shoot_delay: config.shoot_delay,
+                    bullet_radius: config.bullet_radius,
+                    bullet_speed: config.bullet_speed,
+                    ..Default::default()
                 },
                 Transform::default(),
                 Visibility::Visible,
@@ -69,45 +100,61 @@ impl Player {
                 parent
                     .spawn((
                         Tank {
-                            track_velocities: [0.0, 0.0].into(),
-                            track_accelerations: [0.0, 0.0].into(),
+                            radius: config.tank_radius,
+                            track_max_velocity: config.track_max_velocity,
+                            ..Default::default()
                         },
                         Transform::from_translation(position),
                         Sprite::from_image(asset_server.load(tank_sprite_path)),
                     ))
                     .with_child((
                         Turret {
-                            velocity: 0.0,
-                            acceleration: 0.0,
+                            max_velocity: config.turret_max_velocity,
+                            max_acceleration: config.turret_max_acceleration,
+                            ..Default::default()
                         },
                         Transform::from_xyz(0.0, 0.0, 0.0),
                         Sprite::from_image(asset_server.load(turret_sprite_path)),
                     ));
             });
     }
+
+    pub fn reset_input(&mut self) {
+        self.shoot = false;
+        self.tracks_acceleration_target = Default::default();
+        self.turret_acceleration_target = 0.0;
+    }
 }
 
 /// Holds physics data for a tank.
 /// Should only be spawned as a [`ChildOf`](bevy::prelude::ChildOf) a [`Player`].
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct Tank {
     /// Velocities of the two tank treads.
     pub track_velocities: Vec2,
     /// Accelerations of the two tank treads.
     pub track_accelerations: Vec2,
+    /// Size of the tank
+    pub radius: f32,
+    pub track_max_velocity: Vec2,
 }
 
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct Turret {
     /// Rotational speed of the turret (in radians per second).
     pub velocity: f32,
+    /// Maximum velocity.
+    pub max_velocity: f32,
     /// Acceleration of the turret.
     pub acceleration: f32,
+    /// Maximum acceleration.
+    pub max_acceleration: f32,
 }
 
 #[derive(Component)]
 pub struct Bullet {
-    pub direction: Vec2,
+    pub velocity: Vec2,
+    pub radius: f32,
 }
 
 #[derive(Component, Resource)]
