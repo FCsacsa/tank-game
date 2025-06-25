@@ -5,13 +5,13 @@ use bevy::{
         system::{Query, Res},
     },
     gizmos::gizmos::Gizmos,
-    input::{ButtonInput, keyboard::KeyCode},
+    input::{keyboard::KeyCode, ButtonInput},
     math::{Isometry2d, Rot2},
     transform::components::Transform,
 };
 
 use crate::{
-    entities::{Tank, Wall},
+    entities::{Bullet, Tank, Wall},
     util::forget_z,
 };
 
@@ -42,8 +42,9 @@ pub fn draw_normals(mut gizmos: Gizmos, walls: Query<(&Wall, &Transform)>) {
 
 pub fn draw_bounds(
     mut gizmos: Gizmos,
-    tanks: Query<(&Tank, &Transform), Without<Wall>>,
-    walls: Query<(&Wall, &Transform), Without<Tank>>,
+    tanks: Query<(&Tank, &Transform), (Without<Wall>, Without<Bullet>)>,
+    walls: Query<(&Wall, &Transform), (Without<Tank>, Without<Bullet>)>,
+    bullets: Query<(&Bullet, &Transform), (Without<Tank>, Without<Wall>)>,
 ) {
     for (tank, transform) in &tanks {
         let origin = forget_z(transform.translation);
@@ -60,6 +61,15 @@ pub fn draw_bounds(
             origin - wall.direction * wall.half_length,
             origin + wall.direction * wall.half_length,
             Color::srgb(0.6, 1.0, 0.6),
+        );
+    }
+
+    for (bullet, transform) in &bullets {
+        let origin = forget_z(transform.translation);
+        gizmos.circle_2d(
+            Isometry2d::new(origin, Rot2::default()),
+            bullet.radius,
+            Color::srgb(1.0, 0.5, 0.5),
         );
     }
 }
