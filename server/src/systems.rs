@@ -5,11 +5,10 @@ use bevy::{
         entity::Entity,
         hierarchy::{ChildOf, Children},
         query::{With, Without},
-        system::{command, Commands, Query, Res, ResMut},
+        system::{Commands, Query, Res, ResMut, command},
     },
     log,
     math::{Quat, Vec2},
-    render::camera::{OrthographicProjection, Projection, ScalingMode},
     sprite::Sprite,
     time::Time,
     transform::components::Transform,
@@ -28,13 +27,7 @@ use crate::{
 };
 
 pub fn setup_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera2d,
-        Projection::Orthographic(OrthographicProjection {
-            scale: 0.1,
-            ..OrthographicProjection::default_2d()
-        }),
-    ));
+    commands.spawn(Camera2d);
 }
 
 pub fn load_map(commands: Commands, asset_server: Res<AssetServer>, mut maps: ResMut<Maps>) {
