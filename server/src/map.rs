@@ -1,9 +1,5 @@
 use bevy::{
-    asset::AssetServer, color::Color, ecs::{
-        component::Component,
-        resource::Resource,
-        system::{Commands, Res},
-    }, log, math::{Dir2, Vec2}, sprite::Sprite, transform::components::Transform
+    asset::AssetServer, ecs::{component::Component, resource::Resource, system::{Commands, Res}}, log, math::{Dir2, Vec2}, sprite::Sprite, transform::components::Transform
 };
 use serde::Deserialize;
 

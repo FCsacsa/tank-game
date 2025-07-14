@@ -9,6 +9,7 @@ use bevy::{
     },
     log,
     math::{Quat, Vec2},
+    render::camera::{OrthographicProjection, Projection, ScalingMode},
     sprite::Sprite,
     time::Time,
     transform::components::Transform,
@@ -27,8 +28,13 @@ use crate::{
 };
 
 pub fn setup_camera(mut commands: Commands) {
-    commands.spawn(Camera2d);
-    // fix scaling
+    commands.spawn((
+        Camera2d,
+        Projection::Orthographic(OrthographicProjection {
+            scale: 0.1,
+            ..OrthographicProjection::default_2d()
+        }),
+    ));
 }
 
 pub fn load_map(commands: Commands, asset_server: Res<AssetServer>, mut maps: ResMut<Maps>) {

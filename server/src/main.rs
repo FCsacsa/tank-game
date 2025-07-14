@@ -1,3 +1,6 @@
+// Allow dead code while we are still actively developing
+#![allow(dead_code)]
+
 use std::{fs::read_to_string, net::UdpSocket, path::Path};
 
 use bevy::{
