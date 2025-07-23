@@ -61,9 +61,11 @@ pub struct Player {
 
     pub bullet_radius: f32,
     pub bullet_speed: f32,
+    pub bullet_max_bounces: i8,
 }
 
 impl Player {
+    #[allow(clippy::too_many_arguments)]
     pub fn spawn(
         port: u16,
         secret: u128,
@@ -91,6 +93,7 @@ impl Player {
                     shoot_delay: config.shoot_delay,
                     bullet_radius: config.bullet_radius,
                     bullet_speed: config.bullet_speed,
+                    bullet_max_bounces: config.bullet_max_bounces,
                     ..Default::default()
                 },
                 Transform::default(),
@@ -124,6 +127,12 @@ impl Player {
         self.tracks_acceleration_target = Default::default();
         self.turret_acceleration_target = 0.0;
     }
+
+    pub fn death(&mut self) {
+        self.reset_input();
+        self.deaths += 1;
+        self.respawn_timer = Some(Duration::new(0,0));
+    }
 }
 
 /// Holds physics data for a tank.
@@ -155,6 +164,28 @@ pub struct Turret {
 pub struct Bullet {
     pub velocity: Vec2,
     pub radius: f32,
+    max_bounces: i8,
+    bounces: i8,
+}
+
+impl Bullet {
+    pub fn new(velocity: Vec2, radius: f32, max_bounces: i8) -> Self {
+        Self {
+            velocity,
+            radius,
+            max_bounces,
+            bounces: 0,
+        }
+    }
+
+    pub fn add_bounce(&mut self) -> bool {
+        self.bounces += 1;
+        self.bounces <= self.max_bounces
+    }
+
+    pub fn reflect(&mut self, normal: Dir2) {
+        self.velocity = self.velocity.reflect(normal.as_vec2());
+    }
 }
 
 #[derive(Component, Resource)]
