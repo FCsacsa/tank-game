@@ -1,10 +1,12 @@
 // Allow dead code while we are still actively developing
-#![allow(dead_code)]
+#![allow(dead_code, clippy::type_complexity)]
 
 use std::{fs::read_to_string, net::UdpSocket, path::Path};
 
 use bevy::{
-    app::{App, FixedUpdate, Startup, Update}, ecs::schedule::{Condition, IntoScheduleConfigs}, DefaultPlugins
+    DefaultPlugins,
+    app::{App, FixedUpdate, Startup, Update},
+    ecs::schedule::{Condition, IntoScheduleConfigs},
 };
 
 mod config;
@@ -19,7 +21,9 @@ use debug::{do_bounds, do_debug, do_normals, draw_bounds, draw_normals};
 use entities::Socket;
 use map::{Map, Maps};
 use systems::{
-    apply_controls, bullet_bullet_collision, bullet_wall_collision, listen_socket, load_map, move_bullets, move_tanks, player_disconnect, player_respawn, send_state, setup_camera, shoot_countdown, tank_bullet_collision, tank_tank_collision, tank_wall_collision
+    apply_controls, bullet_bullet_collision, bullet_wall_collision, listen_socket, load_map,
+    move_bullets, move_tanks, player_disconnect, player_respawn, send_state, setup_camera,
+    shoot_countdown, tank_bullet_collision, tank_tank_collision, tank_wall_collision,
 };
 
 fn main() {
@@ -35,9 +39,9 @@ fn main() {
         let path = basedir.join(map_path);
         maps.push(
             serde_json::from_str(
-                &read_to_string(path).expect(&format!("Missing map '{map_path}'")),
+                &read_to_string(path).unwrap_or_else(|_| panic!("Missing map '{map_path}'")),
             )
-            .expect(&format!("Incorrect map format '{map_path}'")),
+            .unwrap_or_else(|_| panic!("Incorrect map format '{map_path}'")),
         );
     }
 

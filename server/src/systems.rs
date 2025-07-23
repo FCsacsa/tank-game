@@ -5,7 +5,7 @@ use bevy::{
         entity::Entity,
         hierarchy::{ChildOf, Children},
         query::{With, Without},
-        system::{Commands, Query, Res, ResMut, command},
+        system::{Commands, Query, Res, ResMut},
     },
     log,
     math::{Quat, Vec2},
@@ -17,7 +17,7 @@ use messages::{
     client::ClientMessages,
     server::{self, ServerMessages},
 };
-use std::{f32::consts::PI, net::IpAddr, str::FromStr, time::Duration};
+use std::{collections::HashSet, f32::consts::PI, net::IpAddr, str::FromStr, time::Duration};
 
 use crate::{
     config::Config,
@@ -58,8 +58,7 @@ pub fn listen_socket(
                             Some((mut player, entity)) => {
                                 let position = spawns
                                     .iter()
-                                    .skip(rand::random_range(0..spawns.iter().count().max(1)))
-                                    .next()
+                                    .nth(rand::random_range(0..spawns.iter().count().max(1)))
                                     .map(|t| t.translation)
                                     .unwrap_or_default();
                                 commands
@@ -89,8 +88,7 @@ pub fn listen_socket(
                                 rand::random(),
                                 spawns
                                     .iter()
-                                    .skip(rand::random_range(0..spawns.iter().count().max(1)))
-                                    .next()
+                                    .nth(rand::random_range(0..spawns.iter().count().max(1)))
                                     .map(|t| t.translation)
                                     .unwrap_or_default(),
                                 "tank_body.png".to_owned(),
@@ -194,10 +192,7 @@ pub fn apply_controls(
                             + (tank.radius + player.bullet_radius) * direction;
                         let velocity = forget_z(direction) * player.bullet_speed;
                         commands.spawn((
-                            Bullet {
-                                velocity,
-                                radius: player.bullet_radius,
-                            },
+                            Bullet::new(velocity, player.bullet_radius, player.bullet_max_bounces),
                             Sprite::from_image(asset_server.load(&player.bullet_sprite_path)),
                             Transform::from_translation(translation),
                         ));
@@ -248,7 +243,7 @@ pub fn move_bullets(time: Res<Time>, bullets: Query<(&Bullet, &mut Transform)>) 
 
 pub fn tank_tank_collision(
     mut commands: Commands,
-    mut tanks: Query<(Entity, &Tank, &Transform, &ChildOf)>, // potentially these could influence the tanks speed?
+    tanks: Query<(Entity, &Tank, &Transform, &ChildOf)>, // potentially these could influence the tanks speed?
     mut players: Query<&mut Player>,
 ) {
     let mut delete = vec![];
@@ -301,28 +296,78 @@ pub fn tank_wall_collision(
 pub fn tank_bullet_collision(
     mut commands: Commands,
     mut player: Query<&mut Player>,
-    mut tanks: Query<(&Tank, &ChildOf, &Transform), Without<Bullet>>,
-    mut bullets: Query<(&Bullet, &Transform), Without<Tank>>,
+    tanks: Query<(&Tank, &ChildOf, &Transform, Entity), Without<Bullet>>,
+    bullets: Query<(&Bullet, &Transform, Entity), Without<Tank>>,
 ) {
-    for (tank, parent, transform) in &tanks {
-        for (bullet, bullet_pos) in &bullets {
+    for (tank, parent, transform, entity) in &tanks {
+        for (bullet, bullet_pos, bullet_entity) in &bullets {
             let distance = transform.translation - bullet_pos.translation;
 
             if distance.length() < tank.radius + bullet.radius {
-                log::info!("bullet hit!");
+                let mut parent = player.get_mut(parent.parent()).unwrap();
+                parent.death();
+                commands.entity(entity).despawn();
+                commands.entity(bullet_entity).despawn();
             }
         }
     }
 }
 
-pub fn bullet_wall_collision() {}
+pub fn bullet_wall_collision(
+    mut commands: Commands,
+    walls: Query<(&Wall, &Transform), Without<Bullet>>,
+    mut bullets: Query<(&mut Bullet, &mut Transform, Entity), Without<Wall>>,
+) {
+    for (mut bullet, mut transform, entity) in &mut bullets {
+        let mut correction = Vec2::default();
+        let mut despawn = false;
 
-pub fn bullet_bullet_collision() {}
+        for (wall, wall_origin) in &walls {
+            let wall_origin = forget_z(wall_origin.translation);
+            let bullet_origin = forget_z(transform.translation);
+            // from wikipedia
+            let in_wall_dist = (wall_origin - bullet_origin).dot(wall.direction.as_vec2());
+            let dist_vec = (wall_origin - bullet_origin) - in_wall_dist * wall.direction;
+            let out_wall_dist = dist_vec.length();
+
+            if in_wall_dist.abs() <= wall.half_length + bullet.radius
+                && out_wall_dist < bullet.radius
+            {
+                if !bullet.add_bounce() {
+                    despawn = true;
+                    break;
+                }
+                bullet.reflect(wall.normal);
+                correction += wall.normal * (bullet.radius - out_wall_dist);
+            }
+        }
+
+        if despawn {
+            commands.entity(entity).despawn();
+        } else {
+            transform.translation += with_z(correction, 0.0);
+        }
+    }
+}
+
+pub fn bullet_bullet_collision(mut commands: Commands, bullets: Query<(&Bullet, &Transform, Entity)>) {
+    let mut despawn = HashSet::new();
+    for (i, (bullet, transform, entity)) in bullets.iter().enumerate() {
+        for (other, o_transform, o_entity) in bullets.iter().skip(i + 1) {
+            if (transform.translation - o_transform.translation).length() < bullet.radius + other.radius {
+                despawn.insert(entity);
+                despawn.insert(o_entity);
+            }
+        }
+    }
+    despawn.into_iter().for_each(|entity| commands.entity(entity).despawn());
+}
 
 pub fn player_respawn(
     mut commands: Commands,
     config: Res<Config>,
     time: Res<Time>,
+    asset_server: Res<AssetServer>,
     mut players: Query<(&mut Player, Entity)>,
     spawns: Query<&Transform, With<Spawn>>,
 ) {
@@ -343,14 +388,15 @@ pub fn player_respawn(
                             Transform::from_translation(
                                 spawns
                                     .iter()
-                                    .skip(rand::random_range(0..spawns.iter().count().max(1)))
-                                    .next()
+                                    .nth(rand::random_range(0..spawns.iter().count().max(1)))
                                     .map(|t| t.translation)
                                     .unwrap_or_default(),
                             ),
+                            Sprite::from_image(asset_server.load(player.tank_sprite_path.clone())),
                         ))
-                        .with_child((Turret::default(), Transform::default()));
+                        .with_child((Turret::default(), Transform::default(), Sprite::from_image(asset_server.load(player.turret_sprite_path.clone()))));
                 });
+                player.respawn_timer = None;
             }
         }
     }
@@ -358,9 +404,10 @@ pub fn player_respawn(
 
 pub fn shoot_countdown(time: Res<Time>, mut players: Query<&mut Player>) {
     for mut player in &mut players {
-        if let Some(mut timer) = player.shoot_timer {
-            timer += time.delta();
-            if player.shoot_delay <= timer {
+        let delay = player.shoot_delay;
+        if let Some(timer) = &mut player.shoot_timer {
+            *timer += time.delta();
+            if delay <= *timer {
                 player.shoot_timer = None;
             }
         }
