@@ -31,7 +31,7 @@ impl Default for Config {
             inactivity_timeout: Duration::new(5, 0),
             respawn_delay: Duration::new(5, 0),
             map_dir: "./assets/maps".into(),
-            map_paths: vec!["map.jsonc".to_owned()],
+            map_paths: vec!["layout-00.jsonc".to_owned()],
             tank_radius: 12.0,
             track_max_velocity: [500.0, 500.0].into(),
             track_max_acceleration: [100.0, 100.0].into(),
