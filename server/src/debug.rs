@@ -5,13 +5,13 @@ use bevy::{
         system::{Query, Res},
     },
     gizmos::gizmos::Gizmos,
-    input::{keyboard::KeyCode, ButtonInput},
+    input::{ButtonInput, keyboard::KeyCode},
     math::{Isometry2d, Rot2},
     transform::components::Transform,
 };
 
 use crate::{
-    entities::{Bullet, Tank, Wall},
+    entities::{Bullet, Spawn, Tank, Wall},
     util::forget_z,
 };
 
@@ -23,6 +23,9 @@ pub fn do_normals(keys: Res<ButtonInput<KeyCode>>) -> bool {
 }
 pub fn do_bounds(keys: Res<ButtonInput<KeyCode>>) -> bool {
     keys.pressed(KeyCode::KeyB)
+}
+pub fn do_spawns(keys: Res<ButtonInput<KeyCode>>) -> bool {
+    keys.pressed(KeyCode::KeyS)
 }
 
 pub fn draw_normals(mut gizmos: Gizmos, walls: Query<(&Wall, &Transform)>) {
@@ -70,6 +73,17 @@ pub fn draw_bounds(
             Isometry2d::new(origin, Rot2::default()),
             bullet.radius,
             Color::srgb(1.0, 0.5, 0.5),
+        );
+    }
+}
+
+pub fn draw_spawns(mut gizmos: Gizmos, spawns: Query<(&Spawn, &Transform)>) {
+    for (_, spawn) in spawns {
+        let origin = forget_z(spawn.translation);
+        gizmos.circle_2d(
+            Isometry2d::new(origin, Rot2::default()),
+            30.0,
+            Color::srgb(0.5, 0.5, 1.0),
         );
     }
 }
