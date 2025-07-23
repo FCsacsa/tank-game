@@ -13,6 +13,40 @@ pub enum ClientMessages {
     },
 }
 
+impl ClientMessages {
+    pub fn connect() -> Self {
+        Self::Connect { self_port: 0 }
+    }
+
+    pub fn control(
+        tracks_acceleration_target: [f32; 2],
+        turret_acceleration_target: f32,
+        shoot: bool,
+        secret: u128,
+    ) -> Self {
+        Self::Control {
+            self_port: 0,
+            secret,
+            tracks_acceleration_target,
+            turret_acceleration_target,
+            shoot,
+        }
+    }
+
+    pub fn set_port(&mut self, n_self_port: u16) {
+        match self {
+            ClientMessages::Connect { self_port }
+            | ClientMessages::Control {
+                self_port,
+                secret: _,
+                tracks_acceleration_target: _,
+                turret_acceleration_target: _,
+                shoot: _,
+            } => *self_port = n_self_port,
+        }
+    }
+}
+
 impl From<&ClientMessages> for Vec<u8> {
     fn from(value: &ClientMessages) -> Self {
         match value {
@@ -82,10 +116,7 @@ mod tests {
         let cm = ClientMessages::Control {
             self_port: rand::random(),
             secret: rand::random(),
-            tracks_acceleration_target: [
-                rand::random(),
-                rand::random(),
-            ],
+            tracks_acceleration_target: [rand::random(), rand::random()],
             turret_acceleration_target: rand::random(),
             shoot: true,
         };
