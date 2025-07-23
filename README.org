@@ -12,6 +12,7 @@ Folder Structure
 +- client     | Reference implementation for a client.
 \- server.bak | Old version of the server (here for reference).
 #+end_src
+
 * Communication Protocol
 - all messages done trough UDP
 ** Client to server
@@ -40,42 +41,3 @@ Folder Structure
   | direction | ~[f32; 2]~ | ~8~ bytes |
 *** Disconnected
 no data
-* Server Architecture
-** Entities
-*** Map
-**** Walls
-- Transform, Sprite
-  - start
-  - direction
-  - normal
-- length ~f32~
-**** Spawns
-- Transform
-*** Tank
-- Transform, Sprite
-- data
-  | accelerations       | ~[f32; 2]~ |
-  | velocities          | ~[f32; 2]~ |
-  | turret acceleration | ~f32~      |
-  | turret velocity     | ~f32~      |
-**** Turret
-- Transform, Sprite
-*** Bullet
-- Transform
-- data:
-  | bounce | ~bool~ |
-  | speed  | ~f32~  |
-** Systems
-*** Update
-**** Tank movement
-**** Tank-Tank collision
-**** Wall-Tank collision
-**** Wall-Bullet collision
-**** Tank-Bullet collision
-**** Send state
-**** Receive messages
-**** Cull players
-*** Fixed Update
-**** Update controls
-*** On a timer
-**** Change map
