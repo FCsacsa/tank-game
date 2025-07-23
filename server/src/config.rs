@@ -22,6 +22,7 @@ pub struct Config {
     pub shoot_delay: Duration,
     pub bullet_radius: f32,
     pub bullet_speed: f32,
+    pub bullet_max_bounces: i8,
 }
 
 impl Default for Config {
@@ -39,6 +40,7 @@ impl Default for Config {
             shoot_delay: Duration::new(1, 0),
             bullet_radius: 5.0,
             bullet_speed: 100.0,
+            bullet_max_bounces: 2,
         }
     }
 }
