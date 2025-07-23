@@ -26,6 +26,8 @@ use systems::{
     shoot_countdown, tank_bullet_collision, tank_tank_collision, tank_wall_collision,
 };
 
+use crate::debug::{do_spawns, draw_spawns};
+
 fn main() {
     // load config
     let config = Config::default();
@@ -39,9 +41,14 @@ fn main() {
         let path = basedir.join(map_path);
         maps.push(
             serde_json::from_str(
-                &read_to_string(path).unwrap_or_else(|_| panic!("Missing map '{map_path}'")),
+                &read_to_string(path)
+                    .unwrap_or_else(|_| panic!("Missing map '{map_path}'"))
+                    .lines()
+                    .map(|l| if l.trim().starts_with("//") { "" } else { l })
+                    .collect::<Vec<_>>()
+                    .join("\n"),
             )
-            .unwrap_or_else(|_| panic!("Incorrect map format '{map_path}'")),
+            .unwrap_or_else(|err| panic!("Incorrect map format '{map_path}':\n{err:?}")),
         );
     }
 
@@ -75,6 +82,7 @@ fn main() {
         )
         .add_systems(Update, draw_normals.run_if(do_debug.or(do_normals)))
         .add_systems(Update, draw_bounds.run_if(do_debug.or(do_bounds)))
+        .add_systems(Update, draw_spawns.run_if(do_debug.or(do_spawns)))
         .add_plugins(DefaultPlugins)
         .run();
 }
