@@ -9,11 +9,17 @@ use bevy::{
     ecs::schedule::{Condition, IntoScheduleConfigs},
 };
 
+/// Holds the server configuration struct.
 mod config;
+/// Helpful debugging methods to display various info during runtime.
 mod debug;
+/// Holds the [`Component`](bevy::ecs::component::Component)s for the server.
 mod entities;
+/// The JSON representation of maps.
 mod map;
+/// Game systems.
 mod systems;
+/// Collection of useful functions.
 mod util;
 
 use config::Config;
@@ -26,7 +32,7 @@ use systems::{
     shoot_countdown, tank_bullet_collision, tank_tank_collision, tank_wall_collision,
 };
 
-use crate::debug::{do_spawns, draw_spawns};
+use crate::{debug::{do_spawns, draw_spawns}, systems::move_turrets};
 
 fn main() {
     // load config
@@ -66,7 +72,7 @@ fn main() {
             Update,
             (
                 apply_controls,
-                (move_tanks, move_bullets),
+                (move_tanks, move_turrets, move_bullets),
                 (
                     tank_bullet_collision,
                     tank_tank_collision,

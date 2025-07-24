@@ -50,83 +50,101 @@ pub fn listen_socket(
             log::warn!("Got a message from outside IP: {addr}");
             continue;
         }
-        if let Ok(msg) = ClientMessages::try_from(&buf[..]) {
-            match msg {
-                ClientMessages::Connect { self_port } => {
-                    if addr.port() == self_port {
-                        match players.iter_mut().find(|(p, _)| p.port == self_port) {
-                            Some((mut player, entity)) => {
-                                let position = spawns
-                                    .iter()
-                                    .nth(rand::random_range(0..spawns.iter().count().max(1)))
-                                    .map(|t| t.translation)
-                                    .unwrap_or_default();
-                                commands
-                                    .entity(entity)
-                                    .despawn_related::<Children>()
-                                    .with_children(|parent| {
-                                        parent
-                                            .spawn((
-                                                Tank {
-                                                    track_max_velocity: player.track_max_velocity,
-                                                    radius: player.tank_radius,
-                                                    ..Default::default()
-                                                },
-                                                Transform::from_translation(position),
-                                            ))
-                                            .with_child((
-                                                Turret {
-                                                    ..Default::default()
-                                                },
-                                                Transform::default(),
-                                            ));
-                                    });
-                                player.reset_input()
-                            }
-                            None => Player::spawn(
-                                self_port,
-                                rand::random(),
-                                spawns
-                                    .iter()
-                                    .nth(rand::random_range(0..spawns.iter().count().max(1)))
-                                    .map(|t| t.translation)
-                                    .unwrap_or_default(),
-                                "tank_body.png".to_owned(),
-                                "tank_turret.png".to_owned(),
-                                "bullet.png".to_owned(),
-                                &mut commands,
-                                &config,
-                                &asset_server,
-                            ),
+
+        match ClientMessages::try_from(&buf[..]) {
+            Ok(ClientMessages::Connect { self_port }) => {
+                if addr.port() == self_port {
+                    match players.iter_mut().find(|(p, _)| p.port == self_port) {
+                        Some((mut player, entity)) => {
+                            let position = spawns
+                                .iter()
+                                .nth(rand::random_range(0..spawns.iter().count().max(1)))
+                                .map(|t| t.translation)
+                                .unwrap_or_default();
+                            commands
+                                .entity(entity)
+                                .despawn_related::<Children>()
+                                .with_children(|parent| {
+                                    parent
+                                        .spawn((
+                                            Tank {
+                                                track_max_velocity: player.track_max_velocity,
+                                                radius: player.tank_radius,
+                                                ..Default::default()
+                                            },
+                                            Sprite::from_image(
+                                                asset_server.load(player.tank_sprite_path.clone()),
+                                            ),
+                                            Transform::from_translation(position),
+                                        ))
+                                        .with_child((
+                                            Turret {
+                                                max_velocity: player.turret_max_velocity,
+                                                ..Default::default()
+                                            },
+                                            Sprite::from_image(
+                                                asset_server
+                                                    .load(player.turret_sprite_path.clone()),
+                                            ),
+                                            Transform::from_xyz(0.0, 30.0, 0.0),
+                                        ));
+                                });
+                            player.reset_input()
                         }
-                    } else {
-                        log::warn!(
-                            "Got a message from port {} trying to immitate {}",
-                            addr.port(),
-                            self_port
-                        );
+                        None => Player::spawn(
+                            self_port,
+                            rand::random(),
+                            spawns
+                                .iter()
+                                .nth(rand::random_range(0..spawns.iter().count().max(1)))
+                                .map(|t| t.translation)
+                                .unwrap_or_default(),
+                            "tank_body.png".to_owned(),
+                            "tank_turret.png".to_owned(),
+                            "bullet.png".to_owned(),
+                            &mut commands,
+                            &config,
+                            &asset_server,
+                        ),
                     }
-                }
-                ClientMessages::Control {
-                    self_port,
-                    secret,
-                    tracks_acceleration_target,
-                    turret_acceleration_target,
-                    shoot,
-                } => {
-                    if addr.port() == self_port {
-                        if let Some((mut player, _)) = players
-                            .iter_mut()
-                            .find(|(p, _)| p.port == self_port && p.secret == secret)
-                        {
-                            player.tracks_acceleration_target = tracks_acceleration_target.into();
-                            player.turret_acceleration_target = turret_acceleration_target;
-                            player.shoot = shoot;
-                            player.timeout = Duration::from_micros(0);
-                        }
-                    }
+                } else {
+                    log::warn!(
+                        "Got a message from port {} trying to immitate {}",
+                        addr.port(),
+                        self_port
+                    );
                 }
             }
+
+            Ok(ClientMessages::Control {
+                self_port,
+                secret,
+                tracks_acceleration_target,
+                turret_acceleration_target,
+                shoot,
+            }) => {
+                if addr.port() == self_port {
+                    if let Some((mut player, _)) = players
+                        .iter_mut()
+                        .find(|(p, _)| p.port == self_port && p.secret == secret)
+                    {
+                        player.tracks_acceleration_target = tracks_acceleration_target.into();
+                        player.turret_acceleration_target = turret_acceleration_target;
+                        player.shoot = shoot;
+                        player.timeout = Duration::from_micros(0);
+                    } else {
+                        log::warn!("message witout a player.");
+                    }
+                } else {
+                    log::warn!(
+                        "Message not sending its own port: {}, {}",
+                        addr.port(),
+                        self_port
+                    )
+                }
+            }
+
+            Err(err) => log::error!("Incorrectly formatted message received: {err:?}"),
         }
     }
 }
@@ -185,7 +203,10 @@ pub fn apply_controls(
 
             match turrets.get_mut(children[0]) {
                 Ok((mut turret, turret_transform)) => {
-                    turret.acceleration = player.turret_acceleration_target;
+                    turret.acceleration = player.turret_acceleration_target.clamp(
+                        -player.turret_max_acceleration,
+                        player.turret_max_acceleration,
+                    );
                     if player.shoot && player.shoot_timer.is_none() {
                         let direction = tank_transform.rotation * turret_transform.up().as_vec3();
                         let translation = tank_transform.translation
@@ -232,6 +253,17 @@ pub fn move_tanks(time: Res<Time>, tanks: Query<(&mut Tank, &mut Transform)>) {
             }
             transform.rotate_around(axis, Quat::from_rotation_z(-angle));
         }
+    }
+}
+
+pub fn move_turrets(time: Res<Time>, turrets: Query<(&mut Turret, &mut Transform)>) {
+    for (mut turret, mut transform) in turrets {
+        turret.velocity = (turret.velocity + turret.acceleration * time.delta_secs())
+            .clamp(-turret.max_velocity, turret.max_velocity);
+
+        transform.translation = transform.translation - 6.5 * transform.up().as_vec3();
+        transform.rotate_z(turret.velocity * time.delta_secs());
+        transform.translation = transform.translation + 6.5 * transform.up().as_vec3();
     }
 }
 
@@ -350,17 +382,24 @@ pub fn bullet_wall_collision(
     }
 }
 
-pub fn bullet_bullet_collision(mut commands: Commands, bullets: Query<(&Bullet, &Transform, Entity)>) {
+pub fn bullet_bullet_collision(
+    mut commands: Commands,
+    bullets: Query<(&Bullet, &Transform, Entity)>,
+) {
     let mut despawn = HashSet::new();
     for (i, (bullet, transform, entity)) in bullets.iter().enumerate() {
         for (other, o_transform, o_entity) in bullets.iter().skip(i + 1) {
-            if (transform.translation - o_transform.translation).length() < bullet.radius + other.radius {
+            if (transform.translation - o_transform.translation).length()
+                < bullet.radius + other.radius
+            {
                 despawn.insert(entity);
                 despawn.insert(o_entity);
             }
         }
     }
-    despawn.into_iter().for_each(|entity| commands.entity(entity).despawn());
+    despawn
+        .into_iter()
+        .for_each(|entity| commands.entity(entity).despawn());
 }
 
 pub fn player_respawn(
@@ -394,7 +433,16 @@ pub fn player_respawn(
                             ),
                             Sprite::from_image(asset_server.load(player.tank_sprite_path.clone())),
                         ))
-                        .with_child((Turret::default(), Transform::default(), Sprite::from_image(asset_server.load(player.turret_sprite_path.clone()))));
+                        .with_child((
+                            Turret {
+                                max_velocity: player.turret_max_velocity,
+                                ..Default::default()
+                            },
+                            Transform::from_xyz(0.0, 3.0, 0.0),
+                            Sprite::from_image(
+                                asset_server.load(player.turret_sprite_path.clone()),
+                            ),
+                        ));
                 });
                 player.respawn_timer = None;
             }
