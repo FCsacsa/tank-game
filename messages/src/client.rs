@@ -45,6 +45,13 @@ impl ClientMessages {
             } => *self_port = n_self_port,
         }
     }
+
+    pub fn set_secret(&mut self, n_secret: u128) {
+        match self {
+            ClientMessages::Control { self_port: _, secret, tracks_acceleration_target: _, turret_acceleration_target: _, shoot: _ } => *secret = n_secret,
+            _ => (),
+        }
+    }
 }
 
 impl From<&ClientMessages> for Vec<u8> {
