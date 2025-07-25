@@ -7,4 +7,5 @@ edition = "2024"
 log = "0.4.27"
 messages = { path = "../messages" }
 client-lib-rs = { path = "../client-lib-rs" }
+rand = "0.9.2"
 
