@@ -32,7 +32,7 @@ pub fn draw_normals(mut gizmos: Gizmos, walls: Query<(&Wall, &Transform)>) {
     for (wall, transform) in &walls {
         let origin = forget_z(transform.translation);
         gizmos.line_2d(
-            origin,
+            origin - (25.0 / 6.0) * wall.normal.as_vec2(),
             origin + 25.0 * wall.normal.as_vec2(),
             Color::srgb(
                 (wall.normal.x + 1.0) / 2.0,
@@ -65,6 +65,21 @@ pub fn draw_bounds(
             origin + wall.direction * wall.half_length,
             Color::srgb(0.6, 1.0, 0.6),
         );
+        // let dir = wall.direction.normalize();
+        // gizmos.rect_2d(
+        //     Isometry2d::new(
+        //         origin,
+        //         Rot2 {
+        //             sin: dir.x,
+        //             cos: dir.y,
+        //         },
+        //     ),
+        //     Vec2 {
+        //         x: 50.0,
+        //         y: 2.0 * wall.half_length,
+        //     },
+        //     Color::srgba(0.3, 1.0, 0.3, 0.4),
+        // );
     }
 
     for (bullet, transform) in &bullets {

@@ -4,10 +4,11 @@ use bevy::{
     ecs::{component::Component, resource::Resource},
     math::Vec2,
 };
+use serde::Deserialize;
 
 /// Aggregate `struct` that holds the configuration for the server.
 /// This also includes the defaults for players.
-#[derive(Component, Resource)]
+#[derive(Component, Resource, Deserialize)]
 pub struct Config {
     /// Timeout for player inactivity.
     /// If the player does not send a message within this delay, they will be despawned and
@@ -44,6 +45,8 @@ pub struct Config {
     pub bullet_speed: f32,
     /// Default for the number of bounces that a bullet survives.
     pub bullet_max_bounces: i8,
+
+    pub physics_steps: u8,
 }
 
 impl Default for Config {
@@ -62,6 +65,7 @@ impl Default for Config {
             bullet_radius: 5.0,
             bullet_speed: 100.0,
             bullet_max_bounces: 2,
+            physics_steps: 8,
         }
     }
 }

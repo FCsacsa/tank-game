@@ -227,31 +227,49 @@ pub fn apply_controls(
     }
 }
 
-pub fn move_tanks(time: Res<Time>, tanks: Query<(&mut Tank, &mut Transform)>) {
+pub fn move_tanks(
+    config: Res<Config>,
+    time: Res<Time>,
+    tanks: Query<(&mut Tank, &mut Transform)>,
+    walls: Query<(&Wall, &Transform), Without<Tank>>,
+) {
     for (mut tank, mut transform) in tanks {
         // update speed
-        let new_speed = (tank.track_accelerations * time.delta_secs() + tank.track_velocities)
-            .clamp(-tank.track_max_velocity, tank.track_max_velocity);
-        tank.track_velocities = new_speed;
+        for _ in 0..config.physics_steps {
+            let new_speed = (tank.track_accelerations * time.delta_secs()
+                / f32::from(config.physics_steps)
+                + tank.track_velocities)
+                .clamp(-tank.track_max_velocity, tank.track_max_velocity);
+            tank.track_velocities = new_speed;
 
-        if (tank.track_velocities.x - tank.track_velocities.y).abs() < f32::EPSILON {
-            // only forward
-            let move_direction = transform.up();
-            transform.translation += move_direction
-                * (tank.track_velocities.x + tank.track_velocities.y)
-                * 0.5
-                * time.delta_secs();
-        } else {
-            // do turn
-            let radius = (2.0 * tank.radius * tank.track_velocities.y)
-                / (tank.track_velocities.x - tank.track_velocities.y);
-            let axis = transform.right() * (tank.radius + radius) + transform.translation;
-            let mut angle = tank.track_velocities.y / (2.0 * PI * radius) * time.delta_secs();
-            if !angle.is_normal() {
-                angle = tank.track_velocities.x / (2.0 * PI * (2.0 * tank.radius + radius))
+            if (tank.track_velocities.x - tank.track_velocities.y).abs() < f32::EPSILON {
+                // only forward
+                let move_direction = transform.up();
+                let move_amount = move_direction
+                    * (tank.track_velocities.x + tank.track_velocities.y)
+                    * 0.5
+                    * time.delta_secs()
+                    / f32::from(config.physics_steps);
+                transform.translation += move_amount;
+            } else {
+                // do turn
+                let radius = (2.0 * tank.radius * tank.track_velocities.y)
+                    / (tank.track_velocities.x - tank.track_velocities.y);
+                let axis = transform.right() * (tank.radius + radius) + transform.translation;
+                let mut angle = tank.track_velocities.y
+                    / (2.0 * PI * radius * f32::from(config.physics_steps))
                     * time.delta_secs();
+                if !angle.is_normal() {
+                    angle = tank.track_velocities.x
+                        / (2.0
+                            * PI
+                            * (2.0 * tank.radius + radius)
+                            * f32::from(config.physics_steps))
+                        * time.delta_secs();
+                }
+                transform.rotate_around(axis, Quat::from_rotation_z(-angle));
             }
-            transform.rotate_around(axis, Quat::from_rotation_z(-angle));
+            tank_wall_collision(&tank, &mut transform, &walls);
         }
     }
 }
@@ -301,28 +319,31 @@ pub fn tank_tank_collision(
 }
 
 pub fn tank_wall_collision(
-    walls: Query<(&Wall, &Transform), Without<Tank>>,
-    mut tanks: Query<(&Tank, &mut Transform), Without<Wall>>,
+    tank: &Tank,
+    transform: &mut Transform,
+    walls: &Query<(&Wall, &Transform), Without<Tank>>,
 ) {
-    for (tank, mut transform) in &mut tanks {
-        let mut correction = Vec2::default();
+    let mut correction = Vec2::default();
 
-        for (wall, wall_origin) in &walls {
-            let wall_origin = forget_z(wall_origin.translation);
-            let tank_origin = forget_z(transform.translation);
-            // from wikipedia
-            let in_wall_dist = (wall_origin - tank_origin).dot(wall.direction.as_vec2());
-            let dist_vec = (wall_origin - tank_origin) - in_wall_dist * wall.direction;
-            let out_wall_dist = dist_vec.length();
+    for (wall, wall_origin) in walls {
+        let wall_origin = forget_z(wall_origin.translation);
+        let tank_origin = forget_z(transform.translation);
+        // from wikipedia
+        let in_wall_dist = (wall_origin - tank_origin).dot(wall.direction.as_vec2());
+        let dist_vec = (wall_origin - tank_origin) - in_wall_dist * wall.direction;
+        let out_wall_dist = -wall.normal.dot(dist_vec);
 
-            if in_wall_dist.abs() <= wall.half_length + tank.radius && out_wall_dist < tank.radius {
-                // tank too close, push it
-                correction += wall.normal * (tank.radius - out_wall_dist);
-            }
+        if in_wall_dist.abs() <= wall.half_length + tank.radius * 0.9
+            // && -tank.radius < 6.0 * out_wall_dist
+            && 0.0 < out_wall_dist
+            && out_wall_dist < tank.radius
+        {
+            // tank too close, push it
+            correction += wall.normal * (tank.radius - out_wall_dist);
         }
-
-        transform.translation += with_z(correction, 0.0);
     }
+
+    transform.translation += with_z(correction, 0.0);
 }
 
 pub fn tank_bullet_collision(

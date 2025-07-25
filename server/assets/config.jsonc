@@ -1,0 +1,25 @@
+{
+  "inactivity_timeout": {
+    "secs": 5,
+    "nanos": 0
+  },
+  "respawn_delay": {
+    "secs": 5,
+    "nanos": 0
+  },
+  "map_dir": "./assets/maps",
+  "map_paths": ["layout-00.jsonc"],
+  "tank_radius": 12,
+  "track_max_velocity": [500, 500],
+  "track_max_acceleration": [100, 100],
+  "turret_max_velocity": 300,
+  "turret_max_acceleration": 100,
+  "shoot_delay": {
+    "secs": 5000,
+    "nanos": 0
+  },
+  "bullet_radius": 5,
+  "bullet_speed": 100,
+  "bullet_max_bounces": 2,
+  "physics_steps": 64
+}

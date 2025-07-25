@@ -28,11 +28,11 @@ mod util;
 use config::Config;
 use debug::{do_bounds, do_debug, do_normals, do_spawns, draw_bounds, draw_normals, draw_spawns};
 use entities::Socket;
-use map::{Map, Maps};
+use map::Maps;
 use systems::{
     apply_controls, bullet_bullet_collision, bullet_wall_collision, listen_socket, load_map,
     move_bullets, move_tanks, move_turrets, player_disconnect, player_respawn, send_state,
-    setup_camera, shoot_countdown, tank_bullet_collision, tank_tank_collision, tank_wall_collision,
+    setup_camera, shoot_countdown, tank_bullet_collision, tank_tank_collision,
 };
 use ui::show_leaderboard;
 
@@ -40,27 +40,39 @@ use crate::ui::setup_leaderboard;
 
 fn main() {
     // load config
-    let config = Config::default();
+    let config: Config = serde_json::from_str(
+        &read_to_string("./assets/config.jsonc")
+            .unwrap_or_default()
+            .lines()
+            .map(|l| if l.trim().starts_with("//") { "" } else { l })
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+    .inspect(|_| println!("correct format"))
+    .inspect_err(|err| println!("Incorrect config:\n{err}"))
+    .unwrap_or_default();
     // bind socket
     let socket = UdpSocket::bind(("127.0.0.1", 4000)).unwrap();
     socket.set_nonblocking(true).unwrap();
 
-    let mut maps: Vec<Map> = vec![];
     let basedir = Path::new(&config.map_dir);
-    for map_path in &config.map_paths {
-        let path = basedir.join(map_path);
-        maps.push(
+    let maps = config
+        .map_paths
+        .iter()
+        .flat_map(|path| {
             serde_json::from_str(
-                &read_to_string(path)
-                    .unwrap_or_else(|_| panic!("Missing map '{map_path}'"))
+                &read_to_string(basedir.join(path))
+                    .inspect_err(|err| println!("Map {path} not found:\n{err}"))
+                    .unwrap_or_default()
                     .lines()
                     .map(|l| if l.trim().starts_with("//") { "" } else { l })
                     .collect::<Vec<_>>()
                     .join("\n"),
             )
-            .unwrap_or_else(|err| panic!("Incorrect map format '{map_path}':\n{err:?}")),
-        );
-    }
+            .inspect_err(|err| println!("Reading map '{path}' failed with:\n{err}"))
+        })
+        .collect::<Vec<_>>();
+    assert!(!maps.is_empty(), "At least one map has to be loaded.");
 
     App::new()
         .insert_resource(Socket(socket))
@@ -80,7 +92,6 @@ fn main() {
                     (
                         tank_bullet_collision,
                         tank_tank_collision,
-                        tank_wall_collision,
                         bullet_bullet_collision,
                         bullet_wall_collision,
                     )
