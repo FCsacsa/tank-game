@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 log = "0.4.27"
 messages = { path = "../messages" }
+client-lib-rs = { path = "../client-lib-rs" }
+
