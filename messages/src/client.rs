@@ -22,11 +22,10 @@ impl ClientMessages {
         tracks_acceleration_target: [f32; 2],
         turret_acceleration_target: f32,
         shoot: bool,
-        secret: u128,
     ) -> Self {
         Self::Control {
             self_port: 0,
-            secret,
+            secret: 0,
             tracks_acceleration_target,
             turret_acceleration_target,
             shoot,
