@@ -86,7 +86,7 @@ pub fn listen_socket(
                                                 asset_server
                                                     .load(player.turret_sprite_path.clone()),
                                             ),
-                                            Transform::from_xyz(0.0, 30.0, 0.0),
+                                            Transform::from_xyz(0.0, 3.0, 0.0),
                                         ));
                                 });
                             player.reset_input()
@@ -295,7 +295,7 @@ pub fn tank_tank_collision(
     }
 
     for (entity, parent) in delete {
-        players.get_mut(parent.parent()).unwrap().deaths += 1;
+        players.get_mut(parent.parent()).unwrap().death();
         commands.entity(entity).despawn();
     }
 }

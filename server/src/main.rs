@@ -7,6 +7,7 @@ use bevy::{
     DefaultPlugins,
     app::{App, FixedUpdate, Startup, Update},
     ecs::schedule::{Condition, IntoScheduleConfigs},
+    input::{common_conditions::input_toggle_active, keyboard::KeyCode},
 };
 
 /// Holds the server configuration struct.
@@ -19,20 +20,23 @@ mod entities;
 mod map;
 /// Game systems.
 mod systems;
+/// Show leaderboard.
+mod ui;
 /// Collection of useful functions.
 mod util;
 
 use config::Config;
-use debug::{do_bounds, do_debug, do_normals, draw_bounds, draw_normals};
+use debug::{do_bounds, do_debug, do_normals, do_spawns, draw_bounds, draw_normals, draw_spawns};
 use entities::Socket;
 use map::{Map, Maps};
 use systems::{
     apply_controls, bullet_bullet_collision, bullet_wall_collision, listen_socket, load_map,
-    move_bullets, move_tanks, player_disconnect, player_respawn, send_state, setup_camera,
-    shoot_countdown, tank_bullet_collision, tank_tank_collision, tank_wall_collision,
+    move_bullets, move_tanks, move_turrets, player_disconnect, player_respawn, send_state,
+    setup_camera, shoot_countdown, tank_bullet_collision, tank_tank_collision, tank_wall_collision,
 };
+use ui::show_leaderboard;
 
-use crate::{debug::{do_spawns, draw_spawns}, systems::move_turrets};
+use crate::ui::setup_leaderboard;
 
 fn main() {
     // load config
@@ -65,23 +69,25 @@ fn main() {
             loaded: maps,
             current: None,
         })
-        .add_systems(Startup, setup_camera)
-        .add_systems(Startup, load_map)
-        .add_systems(FixedUpdate, listen_socket)
+        .add_systems(Startup, (setup_camera, load_map, setup_leaderboard))
+        .add_systems(FixedUpdate, (listen_socket, show_leaderboard))
         .add_systems(
             Update,
             (
-                apply_controls,
-                (move_tanks, move_turrets, move_bullets),
                 (
-                    tank_bullet_collision,
-                    tank_tank_collision,
-                    tank_wall_collision,
-                    bullet_bullet_collision,
-                    bullet_wall_collision,
+                    apply_controls,
+                    (move_tanks, move_turrets, move_bullets),
+                    (
+                        tank_bullet_collision,
+                        tank_tank_collision,
+                        tank_wall_collision,
+                        bullet_bullet_collision,
+                        bullet_wall_collision,
+                    )
+                        .chain(),
+                    (player_respawn, shoot_countdown, player_disconnect),
                 )
-                    .chain(),
-                (player_respawn, shoot_countdown, player_disconnect),
+                    .run_if(input_toggle_active(false, KeyCode::Space)),
                 send_state,
             )
                 .chain(),

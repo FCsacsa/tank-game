@@ -31,7 +31,7 @@ pub struct Player {
     pub timeout: Duration,
 
     /// Counter for the number of deaths.
-    pub deaths: u32,
+    deaths: u32,
     /// Respawn delay
     pub respawn_timer: Option<Duration>,
 
@@ -150,6 +150,10 @@ impl Player {
         self.reset_input();
         self.deaths += 1;
         self.respawn_timer = Some(Duration::new(0, 0));
+    }
+
+    pub fn get_deaths(&self) -> u32 {
+        self.deaths
     }
 }
 
